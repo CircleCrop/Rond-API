@@ -41,7 +41,7 @@ def load_app_config(
 
 
 def resolve_db_path(db_path: str | None = None) -> Path:
-    """解析数据库路径，优先级：参数 > 环境变量 > 测试库。"""
+    """解析数据库路径。"""
 
     if db_path:
         candidate = _normalize_path(db_path)
@@ -49,20 +49,47 @@ def resolve_db_path(db_path: str | None = None) -> Path:
             raise ConfigError(f"Database path does not exist: {candidate}")
         return candidate
 
+    test_db_flag = os.getenv("TEST_DB")
+    if test_db_flag is not None:
+        normalized_flag = test_db_flag.strip()
+        if normalized_flag not in {"0", "1"}:
+            raise ConfigError("Invalid TEST_DB value. Use 1 for test DB or 0 for prod DB.")
+        if normalized_flag == "1":
+            return _resolve_test_db_path()
+        return _resolve_prod_db_path()
+
+    # Backward-compatible fallback when TEST_DB is unset.
     env_path = os.getenv("ROND_DB_PATH")
     if env_path:
         candidate = _normalize_path(env_path)
         if candidate.exists():
             return candidate
 
+    return _resolve_test_db_path()
+
+
+def _resolve_prod_db_path() -> Path:
+    """解析生产数据库路径。"""
+
+    env_path = os.getenv("ROND_DB_PATH")
+    if env_path:
+        candidate = _normalize_path(env_path)
+        if not candidate.exists():
+            raise ConfigError(f"ROND_DB_PATH does not exist: {candidate}")
+        return candidate
+
+    raise ConfigError("ROND_DB_PATH is required when TEST_DB=0.")
+
+
+def _resolve_test_db_path() -> Path:
+    """解析测试数据库路径。"""
+
     project_root = Path(__file__).resolve().parents[2]
     test_db_path = project_root / "tests" / "LifeEasy.sqlite"
     if test_db_path.exists():
         return test_db_path.resolve()
 
-    raise ConfigError(
-        "Unable to resolve database path. Set ROND_DB_PATH or pass --db-path."
-    )
+    raise ConfigError("Test database not found: tests/LifeEasy.sqlite")
 
 
 def resolve_timezone(timezone_name: str | None = None) -> tuple[tzinfo, str]:

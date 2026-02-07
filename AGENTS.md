@@ -32,7 +32,7 @@ Rond-API 是一个连接 Apple 应用 _[Rond](https://apps.apple.com/app/id16699
 
 - 固定解释器：`~/.pyenv/versions/3.12.12/bin/python`，不创建虚拟环境
 - 依赖安装：`~/.pyenv/versions/3.12.12/bin/python -m pip install -r requirements.txt`
-- Shell: macOS zsh
+- Shell: zsh
 
 ### 代码搜索
 
