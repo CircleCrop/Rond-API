@@ -42,10 +42,10 @@ python -m pip install -r requirements.txt
 在项目根目录创建 `.env` 文件：
 
 ```env
-ROND_DB_PATH=/Users/你的用户名/Library/Containers/<Rond UUID>/Data/Library/Application Support/Rond/database.sqlite
+ROND_DB_PATH=/Users/你的用户名/Library/Containers/<Rond UUID>/Data/Library/Application Support/Rond/LifeEasy.sqlite
 ```
 
-开发环境可使用内置测试数据库：`tests/LifeEasy.sqlite`
+开发环境可将数据库复制保存至 `tests/LifeEasy.sqlite`，避免误修改。
 
 ## 📝 License
 
