@@ -12,6 +12,9 @@ license = { text = "MIT" }
 authors = [{ name = "Circle Crop" }]
 dependencies = ["sqlalchemy>=2.0", "aiosqlite>=0.20", "python-dotenv>=1.0"]
 
+[project.scripts]
+rond-api = "rond_api.cli:main"
+
 [tool.setuptools]
 package-dir = { "" = "src" }
 
