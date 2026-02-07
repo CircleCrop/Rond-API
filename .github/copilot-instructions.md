@@ -22,6 +22,11 @@ Rond-API 是一个连接 Apple 应用 _[Rond](https://apps.apple.com/app/id16699
 - 生产环境使用 `.env` 中的 `ROND_DB_PATH`
 - 开发环境使用 `tests/LifeEasy.sqlite`
 
+### 当前范围与限制
+
+- 暂不实现游记/行程（TRIP 系列）
+- 暂不实现健康/体能数据（macOS 不支持 HealthKit）
+
 ### Python 环境
 
 - Python 3.12 pyenv
