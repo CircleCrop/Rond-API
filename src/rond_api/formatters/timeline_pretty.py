@@ -109,7 +109,6 @@ def _format_visit_event(
     complex_mode: bool,
     duration_unit_style: DurationUnitStyle,
 ) -> list[str]:
-    marker = "📍" if emoji else "[visit]"
     end_text = "停留中" if event.is_ongoing else f"{event.departure_at:%Y-%m-%d %H:%M}"
     duration_text = _format_duration(
         event.arrival_at,
@@ -121,17 +120,24 @@ def _format_visit_event(
         query_date=query_date,
         duration_text=duration_text,
     )
-    lines = [
-        f"{marker} {event.arrival_at:%Y-%m-%d %H:%M} -> {end_text} ({marker_text})",
-    ]
 
     category_emoji = _category_emoji(event.category_name, event.location_type, emoji=emoji)
     if complex_mode:
-        lines.append(f"   {category_emoji} {event.category_name} | {event.location_name}")
+        marker = category_emoji if emoji else "[visit]"
+        category_part = event.category_name
         if event.tags:
-            lines.append(f"   🏷️ {'、'.join(event.tags)}")
+            category_part = f"{category_part} 🏷️ {'、'.join(event.tags)}"
+        detail_line = f"   {category_part} | {event.location_name}"
+        lines = [
+            f"{marker} {event.arrival_at:%Y-%m-%d %H:%M} -> {end_text} ({marker_text})",
+            detail_line,
+        ]
         return lines
 
+    marker = "📍" if emoji else "[visit]"
+    lines = [
+        f"{marker} {event.arrival_at:%Y-%m-%d %H:%M} -> {end_text} ({marker_text})",
+    ]
     lines.extend(
         [
             f"   地点: {event.location_name}",
@@ -184,7 +190,7 @@ def _format_movement_group(
         _movement_part_text(item, emoji=emoji, duration_unit_style=duration_unit_style)
         for item in group
     ]
-    wrapped_transport_lines = _wrap_parts(transport_parts, max_width=48)
+    wrapped_transport_lines = _wrap_parts(transport_parts, max_width=64)
 
     lines = [
         f"{marker} {start_at:%Y-%m-%d %H:%M} -> {end_at:%Y-%m-%d %H:%M} ({total_duration_text})",
@@ -195,12 +201,12 @@ def _format_movement_group(
     if complex_mode:
         movement_prefix = "   "
         if wrapped_transport_lines:
-            lines.append(f"{movement_prefix}{wrapped_transport_lines[0]}")
+            compact_lines = [f"{movement_prefix}{wrapped_transport_lines[0]}"]
             indent = " " * _display_width(movement_prefix)
-            lines.extend(f"{indent}{line}" for line in wrapped_transport_lines[1:])
+            compact_lines.extend(f"{indent}{line}" for line in wrapped_transport_lines[1:])
+            return compact_lines
         else:
-            lines.append(f"{movement_prefix}无")
-        return lines
+            return [f"{movement_prefix}无"]
 
     transport_prefix = "   交通: "
     if wrapped_transport_lines:
@@ -288,7 +294,9 @@ def _wrap_parts(parts: list[str], max_width: int) -> list[str]:
     lines: list[str] = []
     current = ""
     delimiter = " -> "
+    continuation_delimiter = "-> "
     delimiter_width = _display_width(delimiter)
+    continuation_width = _display_width(continuation_delimiter)
     for part in parts:
         part_width = _display_width(part)
         if not current:
@@ -301,7 +309,10 @@ def _wrap_parts(parts: list[str], max_width: int) -> list[str]:
             continue
 
         lines.append(current)
-        current = part
+        if continuation_width + part_width <= max_width:
+            current = f"{continuation_delimiter}{part}"
+        else:
+            current = part
 
     if current:
         lines.append(current)
