@@ -62,6 +62,10 @@ rond-api timeline --date 2026-01-29 --output both
 rond-api timeline --date yesterday --output pretty --no-emoji
 ```
 
+```bash
+rond-api timeline --date today --tree
+```
+
 ### 4. Python API
 
 ```python
@@ -70,6 +74,11 @@ from rond_api import get_timeline
 timeline = get_timeline(date_expr="2026-01-29", db_path="tests/LifeEasy.sqlite")
 print(timeline.query_date, timeline.timezone, len(timeline.events))
 ```
+
+### 5. tree 装饰线
+
+- CLI: `--tree` 开启，`--no-tree` 关闭
+- `.env`: `tree=on|off`（也支持 `TIMELINE_TREE=on|off`）
 
 ## 📝 License
 

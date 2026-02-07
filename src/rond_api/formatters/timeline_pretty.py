@@ -95,6 +95,7 @@ KEYWORD_EMOJI_RULES: list[tuple[tuple[str, ...], str]] = [
     (("办公室", "公司", "写字楼"), "🏢"),
 ]
 DurationUnitStyle = Literal["compact", "cn", "en"]
+FOLLOWUP_INDENT = "   "
 
 
 def render_timeline_pretty(
@@ -102,6 +103,7 @@ def render_timeline_pretty(
     emoji: bool = True,
     complex_mode: bool = False,
     duration_unit_style: DurationUnitStyle = "compact",
+    tree: bool = False,
 ) -> str:
     """渲染可读时间线。"""
 
@@ -116,17 +118,21 @@ def render_timeline_pretty(
         lines.append("无数据")
         return "\n".join(lines)
 
+    blocks: list[tuple[str, list[str]]] = []
     index = 0
     while index < len(timeline.events):
         event = timeline.events[index]
         if isinstance(event, VisitEvent):
-            lines.extend(
-                _format_visit_event(
-                    event,
-                    query_date=timeline.query_date,
-                    emoji=emoji,
-                    complex_mode=complex_mode,
-                    duration_unit_style=duration_unit_style,
+            blocks.append(
+                (
+                    "visit",
+                    _format_visit_event(
+                        event,
+                        query_date=timeline.query_date,
+                        emoji=emoji,
+                        complex_mode=complex_mode,
+                        duration_unit_style=duration_unit_style,
+                    ),
                 )
             )
             index += 1
@@ -143,19 +149,31 @@ def render_timeline_pretty(
                 and isinstance(timeline.events[index], VisitEvent)
                 else None
             )
-            lines.extend(
-                _format_movement_group(
-                    movement_group,
-                    next_visit,
-                    emoji=emoji,
-                    complex_mode=complex_mode,
-                    duration_unit_style=duration_unit_style,
+            blocks.append(
+                (
+                    "movement",
+                    _format_movement_group(
+                        movement_group,
+                        next_visit,
+                        emoji=emoji,
+                        complex_mode=complex_mode,
+                        duration_unit_style=duration_unit_style,
+                        leading_indent=not tree,
+                    ),
                 )
             )
-        lines.append("")
 
-    while lines and lines[-1] == "":
-        lines.pop()
+    if tree:
+        decorated_blocks = _decorate_tree_blocks(blocks)
+        for block in decorated_blocks:
+            lines.extend(block)
+    else:
+        for _, block in blocks:
+            lines.extend(block)
+            lines.append("")
+        while lines and lines[-1] == "":
+            lines.pop()
+
     return "\n".join(lines)
 
 
@@ -190,12 +208,12 @@ def _format_visit_event(
         category_part = event.category_name
         if event.tags:
             category_part = f"{category_part} 🏷️ {'、'.join(event.tags)}"
-        detail_line = f"   {category_part} | {event.location_name}"
+        detail_line = f"{category_part} | {event.location_name}"
         lines = [
             f"{marker} {event.arrival_at:%Y-%m-%d %H:%M} -> {end_text} ({marker_text})",
             detail_line,
         ]
-        return lines
+        return _indent_followup(lines)
 
     marker = "📍" if emoji else "[visit]"
     lines = [
@@ -203,13 +221,13 @@ def _format_visit_event(
     ]
     lines.extend(
         [
-            f"   地点: {event.location_name}",
-            f"   分类: {category_emoji} {event.category_name}",
+            f"地点: {event.location_name}",
+            f"分类: {category_emoji} {event.category_name}",
         ]
     )
     if event.tags:
-        lines.append(f"   标签: {', '.join(event.tags)}")
-    return lines
+        lines.append(f"标签: {', '.join(event.tags)}")
+    return _indent_followup(lines)
 
 
 def _visit_marker_text(event: VisitEvent, query_date: date, duration_text: str) -> str:
@@ -230,6 +248,7 @@ def _format_movement_group(
     emoji: bool,
     complex_mode: bool,
     duration_unit_style: DurationUnitStyle,
+    leading_indent: bool = True,
 ) -> list[str]:
     dominant = max(group, key=lambda item: item.duration_minutes)
     marker = _movement_emoji(dominant, emoji=emoji)
@@ -262,14 +281,15 @@ def _format_movement_group(
         lines.append(f"   路线: {from_location_name} -> {to_location_name}")
 
     if complex_mode:
-        movement_prefix = "   "
         if wrapped_transport_lines:
-            compact_lines = [f"{movement_prefix}{wrapped_transport_lines[0]}"]
-            indent = " " * _display_width(movement_prefix)
-            compact_lines.extend(f"{indent}{line}" for line in wrapped_transport_lines[1:])
-            return compact_lines
+            if leading_indent:
+                compact_lines = [f"{FOLLOWUP_INDENT}{wrapped_transport_lines[0]}"]
+            else:
+                compact_lines = [wrapped_transport_lines[0]]
+            compact_lines.extend(wrapped_transport_lines[1:])
+            return _indent_followup(compact_lines)
         else:
-            return [f"{movement_prefix}无"]
+            return [f"{FOLLOWUP_INDENT}无"] if leading_indent else ["无"]
 
     transport_prefix = "   交通: "
     if wrapped_transport_lines:
@@ -348,6 +368,48 @@ def _category_emoji(
 
 def _contains_any(source: str, keywords: tuple[str, ...]) -> bool:
     return any(keyword in source for keyword in keywords)
+
+
+def _indent_followup(lines: list[str], indent: str = FOLLOWUP_INDENT) -> list[str]:
+    if not lines:
+        return []
+
+    result = [lines[0]]
+    for line in lines[1:]:
+        if line:
+            result.append(f"{indent}{line}")
+        else:
+            result.append(line)
+    return result
+
+
+def _decorate_tree_blocks(blocks: list[tuple[str, list[str]]]) -> list[list[str]]:
+    if not blocks:
+        return []
+
+    result: list[list[str]] = []
+    last_index = len(blocks) - 1
+
+    for index, (kind, block) in enumerate(blocks):
+        if not block:
+            continue
+
+        is_last = index == last_index
+        if kind == "movement":
+            head_prefix = "└┈ " if is_last else "├┈ "
+        else:
+            head_prefix = "└─ " if is_last else "├─ "
+        follow_prefix = "   " if is_last else "│  "
+
+        decorated = [f"{head_prefix}{block[0]}"]
+        for line in block[1:]:
+            if line:
+                decorated.append(f"{follow_prefix}{line}")
+            else:
+                decorated.append(follow_prefix)
+        result.append(decorated)
+
+    return result
 
 
 def _wrap_parts(parts: list[str], max_width: int) -> list[str]:

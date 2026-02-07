@@ -59,6 +59,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="Disable complex pretty mode.",
     )
     timeline_parser.set_defaults(complex_mode=None)
+    tree_group = timeline_parser.add_mutually_exclusive_group()
+    tree_group.add_argument(
+        "--tree",
+        dest="tree_mode",
+        action="store_true",
+        help="Enable tree decoration in pretty output.",
+    )
+    tree_group.add_argument(
+        "--no-tree",
+        dest="tree_mode",
+        action="store_false",
+        help="Disable tree decoration in pretty output.",
+    )
+    timeline_parser.set_defaults(tree_mode=None)
 
     return parser
 
@@ -92,6 +106,7 @@ def _run_timeline(args: argparse.Namespace) -> int:
         return 1
 
     complex_mode = _resolve_complex_mode(args.complex_mode)
+    tree_mode = _resolve_tree_mode(args.tree_mode)
     duration_unit_style = _resolve_duration_unit_style()
     output_mode: OutputMode = output
     _render_output(
@@ -99,6 +114,7 @@ def _run_timeline(args: argparse.Namespace) -> int:
         output=output_mode,
         emoji=not args.no_emoji,
         complex_mode=complex_mode,
+        tree_mode=tree_mode,
         duration_unit_style=duration_unit_style,
     )
     return 0
@@ -109,6 +125,7 @@ def _render_output(
     output: OutputMode,
     emoji: bool,
     complex_mode: bool,
+    tree_mode: bool,
     duration_unit_style: DurationUnitStyle,
 ) -> None:
     if output in ("pretty", "both"):
@@ -117,6 +134,7 @@ def _render_output(
                 timeline,
                 emoji=emoji,
                 complex_mode=complex_mode,
+                tree=tree_mode,
                 duration_unit_style=duration_unit_style,
             )
         )
@@ -133,6 +151,19 @@ def _resolve_complex_mode(cli_value: bool | None) -> bool:
     raw_env_value = os.getenv("complex")
     if raw_env_value is None:
         raw_env_value = os.getenv("COMPLEX", "0")
+    raw_env_value = raw_env_value.strip().lower()
+    return raw_env_value in {"1", "true", "yes", "on"}
+
+
+def _resolve_tree_mode(cli_value: bool | None) -> bool:
+    if cli_value is not None:
+        return cli_value
+
+    raw_env_value = os.getenv("tree")
+    if raw_env_value is None:
+        raw_env_value = os.getenv("TIMELINE_TREE")
+    if raw_env_value is None:
+        raw_env_value = os.getenv("TREE", "0")
     raw_env_value = raw_env_value.strip().lower()
     return raw_env_value in {"1", "true", "yes", "on"}
 
