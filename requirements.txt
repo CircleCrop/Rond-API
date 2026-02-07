@@ -1,3 +1,4 @@
 sqlalchemy>=2.0
 aiosqlite>=0.20
 python-dotenv>=1.0
+pytest>=8.0
