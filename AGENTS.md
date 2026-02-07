@@ -36,4 +36,4 @@ Rond-API 是一个连接 Apple 应用 _[Rond](https://apps.apple.com/app/id16699
 
 ### 代码搜索
 
-`mcp-vector-search` 用于代码搜索，支持语义搜索和关键字搜索。
+MCP `mcp-vector-search` 用于代码搜索，支持语义搜索和关键字搜索。

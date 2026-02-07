@@ -272,3 +272,6 @@ marimo/_lsp/
 __marimo__/
 tests/LifeEasy.sqlite-shm
 tests/LifeEasy.sqlite-wal
+
+# MCP Vector Search index directory
+.mcp-vector-search/
