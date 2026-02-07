@@ -27,6 +27,7 @@ class TimelineRepository:
             rv.ZTHOROUGHFARE AS raw_thoroughfare,
             rv.ZLATITUDE AS raw_latitude,
             rv.ZLONGITUDE AS raw_longitude,
+            l.ZTYPE_ AS location_type,
             COALESCE(NULLIF(l.ZNAME_, ''), '未知地点') AS location_name,
             COALESCE(NULLIF(la.ZNAME_, ''), NULLIF(va.ZNAME_, ''), '未分类') AS category_name
         FROM ZVISIT v

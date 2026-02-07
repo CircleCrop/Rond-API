@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
-from rond_api.domain.timeline_types import MovementEvent, TimelineResult, VisitEvent
+import unicodedata
+from datetime import date, datetime, time, timedelta
+from typing import Literal
 
+from rond_api.domain.timeline_types import MovementEvent, TimelineResult, VisitEvent
 
 EMOJI_BY_TRANSPORT_MODE = {
     "unknown": "🛣️",
@@ -15,8 +18,34 @@ EMOJI_BY_TRANSPORT_MODE = {
     "flight": "✈️",
 }
 
+CATEGORY_EMOJI_EXACT = {
+    "家": "🏠",
+    "学校": "🏫",
+    "茶饮": "🥤",
+    "餐厅": "🍽️",
+    "银行": "🏦",
+    "商场": "🛍️",
+    "机厅": "🎮",
+    "医院": "🏥",
+    "病院": "🏥",
+    "健身": "💪",
+    "图书馆": "📚",
+    "影院": "🎬",
+    "博物馆": "🏛️",
+    "酒店": "🏨",
+    "超市": "🛒",
+    "机场": "🛫",
+    "别人家": "🏡",
+}
+DurationUnitStyle = Literal["compact", "cn", "en"]
 
-def render_timeline_pretty(timeline: TimelineResult, emoji: bool = True) -> str:
+
+def render_timeline_pretty(
+    timeline: TimelineResult,
+    emoji: bool = True,
+    complex_mode: bool = False,
+    duration_unit_style: DurationUnitStyle = "compact",
+) -> str:
     """渲染可读时间线。"""
 
     lines: list[str] = []
@@ -24,7 +53,6 @@ def render_timeline_pretty(timeline: TimelineResult, emoji: bool = True) -> str:
         lines.append(f"🗓️ 时间线 {timeline.query_date.isoformat()} ({timeline.timezone})")
     else:
         lines.append(f"Timeline {timeline.query_date.isoformat()} ({timeline.timezone})")
-
     lines.append("─" * 72)
 
     if not timeline.events:
@@ -35,7 +63,15 @@ def render_timeline_pretty(timeline: TimelineResult, emoji: bool = True) -> str:
     while index < len(timeline.events):
         event = timeline.events[index]
         if isinstance(event, VisitEvent):
-            lines.extend(_format_visit_event(event, emoji))
+            lines.extend(
+                _format_visit_event(
+                    event,
+                    query_date=timeline.query_date,
+                    emoji=emoji,
+                    complex_mode=complex_mode,
+                    duration_unit_style=duration_unit_style,
+                )
+            )
             index += 1
         else:
             movement_group: list[MovementEvent] = []
@@ -50,7 +86,15 @@ def render_timeline_pretty(timeline: TimelineResult, emoji: bool = True) -> str:
                 and isinstance(timeline.events[index], VisitEvent)
                 else None
             )
-            lines.extend(_format_movement_group(movement_group, next_visit, emoji))
+            lines.extend(
+                _format_movement_group(
+                    movement_group,
+                    next_visit,
+                    emoji=emoji,
+                    complex_mode=complex_mode,
+                    duration_unit_style=duration_unit_style,
+                )
+            )
         lines.append("")
 
     while lines and lines[-1] == "":
@@ -58,35 +102,76 @@ def render_timeline_pretty(timeline: TimelineResult, emoji: bool = True) -> str:
     return "\n".join(lines)
 
 
-def _format_visit_event(event: VisitEvent, emoji: bool) -> list[str]:
+def _format_visit_event(
+    event: VisitEvent,
+    query_date: date,
+    emoji: bool,
+    complex_mode: bool,
+    duration_unit_style: DurationUnitStyle,
+) -> list[str]:
     marker = "📍" if emoji else "[visit]"
-    cross_day_marker = " 🌙 跨天" if event.is_cross_day else ""
-    end_text = "进行中" if event.is_ongoing else f"{event.departure_at:%Y-%m-%d %H:%M}"
+    end_text = "停留中" if event.is_ongoing else f"{event.departure_at:%Y-%m-%d %H:%M}"
+    duration_text = _format_duration(
+        event.arrival_at,
+        event.departure_at,
+        style=duration_unit_style,
+    )
+    marker_text = _visit_marker_text(
+        event=event,
+        query_date=query_date,
+        duration_text=duration_text,
+    )
     lines = [
-        f"{marker} {event.arrival_at:%Y-%m-%d %H:%M} -> {end_text}{cross_day_marker}",
-        f"   地点: {event.location_name}",
-        f"   分类: {event.category_name}",
+        f"{marker} {event.arrival_at:%Y-%m-%d %H:%M} -> {end_text} ({marker_text})",
     ]
-    if event.is_ongoing:
-        lines.append("   状态: 停留中")
+
+    category_emoji = _category_emoji(event.category_name, event.location_type, emoji=emoji)
+    if complex_mode:
+        lines.append(f"   {category_emoji} {event.category_name} | {event.location_name}")
+        if event.tags:
+            lines.append(f"   🏷️ {'、'.join(event.tags)}")
+        return lines
+
+    lines.extend(
+        [
+            f"   地点: {event.location_name}",
+            f"   分类: {category_emoji} {event.category_name}",
+        ]
+    )
     if event.tags:
         lines.append(f"   标签: {', '.join(event.tags)}")
     return lines
+
+
+def _visit_marker_text(event: VisitEvent, query_date: date, duration_text: str) -> str:
+    if event.arrival_at.date() == event.departure_at.date():
+        return duration_text
+
+    day_start = datetime.combine(query_date, time.min, tzinfo=event.arrival_at.tzinfo)
+    day_end = day_start + timedelta(days=1)
+    is_full_day = event.arrival_at <= day_start and event.departure_at >= day_end
+    if is_full_day:
+        return f"☀️ 全天 🌙 跨天 {duration_text}"
+    return f"🌙 跨天 {duration_text}"
 
 
 def _format_movement_group(
     group: list[MovementEvent],
     next_visit: VisitEvent | None,
     emoji: bool,
+    complex_mode: bool,
+    duration_unit_style: DurationUnitStyle,
 ) -> list[str]:
     dominant = max(group, key=lambda item: item.duration_minutes)
     marker = _movement_emoji(dominant, emoji=emoji)
 
     start_at = group[0].start_at
     end_at = group[-1].end_at
-    start_floor = start_at.replace(second=0, microsecond=0)
-    end_floor = end_at.replace(second=0, microsecond=0)
-    total_minutes = int(max((end_floor - start_floor).total_seconds(), 0) // 60)
+    total_duration_text = _format_duration(
+        start_at.replace(second=0, microsecond=0),
+        end_at.replace(second=0, microsecond=0),
+        style=duration_unit_style,
+    )
 
     from_location_name = group[0].from_location_name or "未知地点"
     to_location_name = group[-1].to_location_name
@@ -95,28 +180,52 @@ def _format_movement_group(
     if not to_location_name:
         to_location_name = "未知地点"
 
-    transport_parts = [_movement_part_text(item, emoji=emoji) for item in group]
+    transport_parts = [
+        _movement_part_text(item, emoji=emoji, duration_unit_style=duration_unit_style)
+        for item in group
+    ]
     wrapped_transport_lines = _wrap_parts(transport_parts, max_width=48)
-    transport_prefix = "   交通: "
 
     lines = [
-        f"{marker} {start_at:%Y-%m-%d %H:%M} -> {end_at:%Y-%m-%d %H:%M} ({total_minutes}m)",
-        f"   路线: {from_location_name} -> {to_location_name}",
+        f"{marker} {start_at:%Y-%m-%d %H:%M} -> {end_at:%Y-%m-%d %H:%M} ({total_duration_text})",
     ]
+    if not complex_mode:
+        lines.append(f"   路线: {from_location_name} -> {to_location_name}")
+
+    if complex_mode:
+        movement_prefix = "   "
+        if wrapped_transport_lines:
+            lines.append(f"{movement_prefix}{wrapped_transport_lines[0]}")
+            indent = " " * _display_width(movement_prefix)
+            lines.extend(f"{indent}{line}" for line in wrapped_transport_lines[1:])
+        else:
+            lines.append(f"{movement_prefix}无")
+        return lines
+
+    transport_prefix = "   交通: "
     if wrapped_transport_lines:
         lines.append(f"{transport_prefix}{wrapped_transport_lines[0]}")
-        indent = " " * len(transport_prefix)
+        indent = " " * _display_width(transport_prefix)
         lines.extend(f"{indent}{line}" for line in wrapped_transport_lines[1:])
     else:
         lines.append(f"{transport_prefix}无")
     return lines
 
 
-def _movement_part_text(event: MovementEvent, emoji: bool) -> str:
+def _movement_part_text(
+    event: MovementEvent,
+    emoji: bool,
+    duration_unit_style: DurationUnitStyle,
+) -> str:
     icon = _movement_emoji(event, emoji=emoji)
+    duration_text = _format_duration(
+        event.start_at,
+        event.end_at,
+        style=duration_unit_style,
+    )
     if emoji:
-        return f"{icon} {event.transport_name} ({event.duration_minutes}m)"
-    return f"{event.transport_name} ({event.duration_minutes}m)"
+        return f"{icon} {event.transport_name} ({duration_text})"
+    return f"{event.transport_name} ({duration_text})"
 
 
 def _movement_emoji(event: MovementEvent, emoji: bool) -> str:
@@ -124,7 +233,7 @@ def _movement_emoji(event: MovementEvent, emoji: bool) -> str:
         return "[movement]"
 
     name = event.transport_name
-    if _contains_any(name, ("地铁", "电车", "高铁", "火车", "轻轨", "有轨")):
+    if _contains_any(name, ("地铁", "电车", "高铁", "火车", "轻轨", "有轨", "公交")):
         return "🚇"
     if _contains_any(name, ("步行",)):
         return "🚶"
@@ -139,25 +248,122 @@ def _movement_emoji(event: MovementEvent, emoji: bool) -> str:
     return EMOJI_BY_TRANSPORT_MODE.get(event.transport_mode, "🛣️")
 
 
+def _category_emoji(category_name: str, location_type: int | None, emoji: bool) -> str:
+    if not emoji:
+        return "[分类]"
+
+    direct = CATEGORY_EMOJI_EXACT.get(category_name)
+    if direct:
+        return direct
+
+    if _contains_any(category_name, ("茶", "咖啡", "奶茶")):
+        return "🥤"
+    if _contains_any(category_name, ("餐", "饭", "火锅", "寿司", "面")):
+        return "🍽️"
+    if _contains_any(category_name, ("购", "商场")):
+        return "🛍️"
+    if _contains_any(category_name, ("健身", "运动")):
+        return "💪"
+    if _contains_any(category_name, ("银行",)):
+        return "🏦"
+    if _contains_any(category_name, ("医院", "病")):
+        return "🏥"
+    if _contains_any(category_name, ("家",)):
+        return "🏠"
+
+    if location_type == 1:
+        return "🛣️"
+    if location_type == 3:
+        return "🏫"
+    return "📂"
+
+
 def _contains_any(source: str, keywords: tuple[str, ...]) -> bool:
     return any(keyword in source for keyword in keywords)
 
 
 def _wrap_parts(parts: list[str], max_width: int) -> list[str]:
-    """按最大宽度换行，保持箭头连接。"""
+    """按显示宽度换行，保持箭头连接。"""
 
     lines: list[str] = []
     current = ""
+    delimiter = " -> "
+    delimiter_width = _display_width(delimiter)
     for part in parts:
-        candidate = part if not current else f"{current} -> {part}"
-        if len(candidate) <= max_width or not current:
-            current = candidate
+        part_width = _display_width(part)
+        if not current:
+            current = part
             continue
+
+        candidate_width = _display_width(current) + delimiter_width + part_width
+        if candidate_width <= max_width:
+            current = f"{current}{delimiter}{part}"
+            continue
+
         lines.append(current)
         current = part
+
     if current:
         lines.append(current)
-    return [
-        line.strip()
-        for line in lines
-    ]
+    return [line.strip() for line in lines]
+
+
+def _display_width(text: str) -> int:
+    width = 0
+    for char in text:
+        if unicodedata.combining(char):
+            continue
+        east_asian = unicodedata.east_asian_width(char)
+        width += 2 if east_asian in {"W", "F"} else 1
+    return width
+
+
+def _format_duration(
+    start_at: datetime,
+    end_at: datetime,
+    style: DurationUnitStyle,
+) -> str:
+    total_minutes = int(max((end_at - start_at).total_seconds(), 0) // 60)
+    days = total_minutes // (24 * 60)
+    hours = (total_minutes % (24 * 60)) // 60
+    minutes = total_minutes % 60
+
+    if style == "cn":
+        return _format_duration_cn(days, hours, minutes)
+    if style == "en":
+        return _format_duration_en(days, hours, minutes)
+    return _format_duration_compact(days, hours, minutes)
+
+
+def _format_duration_compact(days: int, hours: int, minutes: int) -> str:
+    parts: list[str] = []
+    if days > 0:
+        parts.append(f"{days}d")
+    if hours > 0:
+        parts.append(f"{hours}h")
+    parts.append(f"{minutes}m")
+    return " ".join(parts)
+
+
+def _format_duration_cn(days: int, hours: int, minutes: int) -> str:
+    parts: list[str] = []
+    if days > 0:
+        parts.append(f"{days} 天")
+    if hours > 0:
+        parts.append(f"{hours} 时")
+    parts.append(f"{minutes} 分")
+    return " ".join(parts)
+
+
+def _format_duration_en(days: int, hours: int, minutes: int) -> str:
+    parts: list[str] = []
+    if days > 0:
+        parts.append(f"{days} {_plural(days, 'day')}")
+    if hours > 0:
+        parts.append(f"{hours} {_plural(hours, 'hour')}")
+    parts.append(f"{minutes} {_plural(minutes, 'minute')}")
+    return " ".join(parts)
+
+
+def _plural(value: int, unit: str) -> str:
+    return unit if value == 1 else f"{unit}s"

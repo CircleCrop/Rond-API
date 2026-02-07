@@ -21,10 +21,11 @@ from rond_api.repositories.timeline_repository import TimelineRepository
 CORE_DATA_UNIX_EPOCH_OFFSET = 978307200
 TRANSPORT_MODE_BY_TYPE: dict[int, TransportMode] = {
     0: "unknown",
+    1: "flight",
     2: "walk",
     3: "run",
     4: "drive",
-    5: "flight",
+    5: "drive",
     6: "bike",
 }
 TRANSPORT_FALLBACK_NAME_BY_MODE: dict[TransportMode, str] = {
@@ -36,6 +37,11 @@ TRANSPORT_FALLBACK_NAME_BY_MODE: dict[TransportMode, str] = {
     "flight": "飞行",
     "public_transit": "公共交通",
 }
+PUBLIC_TRANSIT_KEYWORDS = ("地铁", "电车", "高铁", "火车", "轻轨", "有轨", "公交")
+FLIGHT_KEYWORDS = ("飞", "航班", "飞机")
+BIKE_KEYWORDS = ("骑", "单车", "自行车", "电瓶")
+RUN_KEYWORDS = ("跑",)
+WALK_KEYWORDS = ("步行",)
 
 
 class TimelineService:
@@ -87,6 +93,7 @@ class TimelineService:
                     visit_id=visit_id,
                     location_name=location_name,
                     category_name=category_name,
+                    location_type=_to_int(row.get("location_type")),
                     tags=sorted(merged_tags),
                     arrival_at=arrival_at,
                     departure_at=departure_at,
@@ -103,6 +110,7 @@ class TimelineService:
             transport_name = str(raw_transport_name).strip() if raw_transport_name else ""
             if not transport_name:
                 transport_name = TRANSPORT_FALLBACK_NAME_BY_MODE[cast(TransportMode, transport_mode)]
+            transport_mode = _infer_transport_mode(transport_name, cast(TransportMode, transport_mode))
 
             duration_minutes = int(max((end_at - start_at).total_seconds(), 0) // 60)
             events.append(
@@ -212,6 +220,7 @@ class TimelineService:
                 visit_id=-int(raw_open.get("raw_id", 0) or 0),
                 location_name=location_name or raw_name or raw_road or "未知地点",
                 category_name=category_name,
+                location_type=None,
                 tags=[],
                 arrival_at=arrival_at,
                 departure_at=now_at,
@@ -365,6 +374,37 @@ def _to_float(value: object | None) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _to_int(value: object | None) -> int | None:
+    """安全转换为整数。"""
+
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _infer_transport_mode(transport_name: str, fallback_mode: TransportMode) -> TransportMode:
+    """根据交通名称推断模式。"""
+
+    if _contains_any(transport_name, PUBLIC_TRANSIT_KEYWORDS):
+        return "public_transit"
+    if _contains_any(transport_name, FLIGHT_KEYWORDS):
+        return "flight"
+    if _contains_any(transport_name, BIKE_KEYWORDS):
+        return "bike"
+    if _contains_any(transport_name, RUN_KEYWORDS):
+        return "run"
+    if _contains_any(transport_name, WALK_KEYWORDS):
+        return "walk"
+    return fallback_mode
+
+
+def _contains_any(source: str, keywords: tuple[str, ...]) -> bool:
+    return any(keyword in source for keyword in keywords)
 
 
 def _distance_meters(lat1: float, lon1: float, lat2: float, lon2: float) -> float:

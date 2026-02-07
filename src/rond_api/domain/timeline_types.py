@@ -25,6 +25,7 @@ class VisitEvent:
     visit_id: int
     location_name: str
     category_name: str
+    location_type: int | None
     tags: list[str]
     arrival_at: datetime
     departure_at: datetime
