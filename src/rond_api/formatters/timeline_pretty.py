@@ -37,6 +37,31 @@ CATEGORY_EMOJI_EXACT = {
     "机场": "🛫",
     "别人家": "🏡",
 }
+LOCATION_TYPE_EMOJI = {
+    0: "📍",
+    1: "🛣️",
+    2: "📌",
+    3: "🏢",
+}
+KEYWORD_EMOJI_RULES: list[tuple[tuple[str, ...], str]] = [
+    (("家", "宿舍", "小区"), "🏠"),
+    (("学校", "大学", "学院", "校区"), "🏫"),
+    (("车站", "地铁", "高铁", "火车", "铁路", "枢纽", "站"), "🚉"),
+    (("机场", "航站", "空港"), "🛫"),
+    (("酒店", "宾馆", "旅馆", "民宿"), "🏨"),
+    (("餐厅", "饭", "面", "火锅", "烧烤", "寿司", "居酒屋", "吃"), "🍽️"),
+    (("茶饮", "咖啡", "奶茶", "甜品"), "🥤"),
+    (("商场", "商店", "超市", "便利店", "唐吉诃德"), "🛍️"),
+    (("银行", "atm"), "🏦"),
+    (("医院", "病院", "诊所", "药店", "医"), "🏥"),
+    (("图书馆", "书店"), "📚"),
+    (("健身", "体育", "球馆"), "💪"),
+    (("博物馆", "美术馆", "展览馆"), "🏛️"),
+    (("公园", "绿地"), "🌳"),
+    (("影院", "电影院"), "🎬"),
+    (("机厅", "电玩", "游戏"), "🎮"),
+    (("办公室", "公司", "写字楼"), "🏢"),
+]
 DurationUnitStyle = Literal["compact", "cn", "en"]
 
 
@@ -121,7 +146,12 @@ def _format_visit_event(
         duration_text=duration_text,
     )
 
-    category_emoji = _category_emoji(event.category_name, event.location_type, emoji=emoji)
+    category_emoji = _category_emoji(
+        event.category_name,
+        event.location_name,
+        event.location_type,
+        emoji=emoji,
+    )
     if complex_mode:
         marker = category_emoji if emoji else "[visit]"
         category_part = event.category_name
@@ -254,34 +284,27 @@ def _movement_emoji(event: MovementEvent, emoji: bool) -> str:
     return EMOJI_BY_TRANSPORT_MODE.get(event.transport_mode, "🛣️")
 
 
-def _category_emoji(category_name: str, location_type: int | None, emoji: bool) -> str:
+def _category_emoji(
+    category_name: str,
+    location_name: str,
+    location_type: int | None,
+    emoji: bool,
+) -> str:
     if not emoji:
         return "[分类]"
 
+    emoji_value = LOCATION_TYPE_EMOJI.get(location_type, "📂")
+
     direct = CATEGORY_EMOJI_EXACT.get(category_name)
     if direct:
-        return direct
+        emoji_value = direct
 
-    if _contains_any(category_name, ("茶", "咖啡", "奶茶")):
-        return "🥤"
-    if _contains_any(category_name, ("餐", "饭", "火锅", "寿司", "面")):
-        return "🍽️"
-    if _contains_any(category_name, ("购", "商场")):
-        return "🛍️"
-    if _contains_any(category_name, ("健身", "运动")):
-        return "💪"
-    if _contains_any(category_name, ("银行",)):
-        return "🏦"
-    if _contains_any(category_name, ("医院", "病")):
-        return "🏥"
-    if _contains_any(category_name, ("家",)):
-        return "🏠"
-
-    if location_type == 1:
-        return "🛣️"
-    if location_type == 3:
-        return "🏫"
-    return "📂"
+    keyword_text = f"{category_name} {location_name}".lower()
+    for keywords, icon in KEYWORD_EMOJI_RULES:
+        if any(keyword in keyword_text for keyword in keywords):
+            emoji_value = icon
+            break
+    return emoji_value
 
 
 def _contains_any(source: str, keywords: tuple[str, ...]) -> bool:

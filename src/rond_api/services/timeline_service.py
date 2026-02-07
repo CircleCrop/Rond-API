@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import re
 from datetime import date, datetime, time, timedelta, timezone, tzinfo
 from typing import Literal, cast
 
@@ -325,12 +326,32 @@ def parse_query_date(date_expr: str, tz: tzinfo) -> date:
     if normalized == "yesterday":
         return today - timedelta(days=1)
 
-    try:
-        return date.fromisoformat(normalized)
-    except ValueError as exc:
-        raise ValueError(
-            f"Invalid date expression: {date_expr}. Use today, yesterday or YYYY-MM-DD."
-        ) from exc
+    full_match = re.fullmatch(r"(\d{4})-(\d{1,2})-(\d{1,2})", normalized)
+    if full_match:
+        year = int(full_match.group(1))
+        month = int(full_match.group(2))
+        day = int(full_match.group(3))
+        try:
+            return date(year, month, day)
+        except ValueError as exc:
+            raise ValueError(
+                f"Invalid date expression: {date_expr}. Use a valid date."
+            ) from exc
+
+    short_match = re.fullmatch(r"(\d{1,2})-(\d{1,2})", normalized)
+    if short_match:
+        month = int(short_match.group(1))
+        day = int(short_match.group(2))
+        try:
+            return date(today.year, month, day)
+        except ValueError as exc:
+            raise ValueError(
+                f"Invalid date expression: {date_expr}. Use a valid month-day."
+            ) from exc
+
+    raise ValueError(
+        f"Invalid date expression: {date_expr}. Use today, yesterday, YYYY-M-D or M-D."
+    )
 
 
 def _validate_output_mode(output: str) -> Literal["pretty", "json", "both"]:
