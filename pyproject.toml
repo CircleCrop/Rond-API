@@ -5,11 +5,11 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "rond-api"
 version = "0.1.0"
-description = "API utilities for accessing a macOS app container database."
+description = "An API tool to connect with Apple app Rond(macOS Container)."
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
-authors = [{ name = "Your Name" }]
+authors = [{ name = "Circle Crop" }]
 dependencies = ["sqlalchemy>=2.0", "aiosqlite>=0.20", "python-dotenv>=1.0"]
 
 [tool.setuptools]

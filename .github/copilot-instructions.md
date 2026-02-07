@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-Rond-API 是一个连接 Apple 应用 _[Rond](https://apps.apple.com/app/id1669903815?platform=iphone)_ 的 API 工具，支持 CLI 命令行调用和 MCP 服务器，基于 `Python 3.12`，运行于 `macOS`。
+Rond-API 是一个连接 Apple 应用 _[Rond](https://apps.apple.com/app/id1669903815)_ 的 API 工具，支持 CLI 命令行调用和 MCP 服务器，基于 `Python 3.12`，运行于 `macOS`。
 
 ## 开发规范
 
@@ -14,6 +14,13 @@ Rond-API 是一个连接 Apple 应用 _[Rond](https://apps.apple.com/app/id16699
 - 中文注释和文档字符串，英文日志消息
 
 ## 环境和工具
+
+### 数据库约束
+
+- 数据库永远只读，API 不允许写入
+- 打开数据库时可能有其他应用正在写入
+- 生产环境使用 `.env` 中的 `ROND_DB_PATH`
+- 开发环境使用 `tests/LifeEasy.sqlite`
 
 ### Python 环境
 
