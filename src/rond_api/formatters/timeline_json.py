@@ -20,6 +20,7 @@ def timeline_to_dict(timeline: TimelineResult) -> dict[str, Any]:
                     "visit_id": event.visit_id,
                     "location_name": event.location_name,
                     "category_name": event.category_name,
+                    "poi_category": event.poi_category,
                     "tags": event.tags,
                     "arrival_at": event.arrival_at.isoformat(),
                     "departure_at": event.departure_at.isoformat(),

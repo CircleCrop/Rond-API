@@ -28,6 +28,7 @@ class TimelineRepository:
             rv.ZLATITUDE AS raw_latitude,
             rv.ZLONGITUDE AS raw_longitude,
             l.ZTYPE_ AS location_type,
+            l.ZCATEGORY_ AS poi_category,
             COALESCE(NULLIF(l.ZNAME_, ''), '未知地点') AS location_name,
             COALESCE(NULLIF(la.ZNAME_, ''), NULLIF(va.ZNAME_, ''), '未分类') AS category_name
         FROM ZVISIT v
@@ -89,6 +90,8 @@ class TimelineRepository:
         SELECT
             l.Z_PK AS location_id,
             l.ZNAME_ AS location_name,
+            l.ZTYPE_ AS location_type,
+            l.ZCATEGORY_ AS poi_category,
             l.ZLATITUDE AS latitude,
             l.ZLONGITUDE AS longitude,
             SUM(CASE WHEN va.ZISHOME = 1 THEN 1 ELSE 0 END) AS home_visit_count,

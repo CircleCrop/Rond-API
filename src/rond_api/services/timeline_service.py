@@ -80,7 +80,12 @@ class TimelineService:
             location_id = row.get("location_id")
             arrival_at = _from_core_data_seconds(float(row["arrival_core"]), tz)
             departure_at = _from_core_data_seconds(float(row["departure_core"]), tz)
-            location_name, category_name = self._resolve_visit_location_and_category(
+            (
+                location_name,
+                category_name,
+                location_type,
+                poi_category,
+            ) = self._resolve_visit_location_and_category(
                 row,
                 nearby_cache=nearby_cache,
             )
@@ -94,7 +99,8 @@ class TimelineService:
                     visit_id=visit_id,
                     location_name=location_name,
                     category_name=category_name,
-                    location_type=_to_int(row.get("location_type")),
+                    location_type=location_type,
+                    poi_category=poi_category,
                     tags=sorted(merged_tags),
                     arrival_at=arrival_at,
                     departure_at=departure_at,
@@ -149,13 +155,15 @@ class TimelineService:
         self,
         row: dict[str, object],
         nearby_cache: dict[tuple[float, float], list[dict[str, object]]],
-    ) -> tuple[str, str]:
+    ) -> tuple[str, str, int | None, str | None]:
         """解析到访地点与分类，必要时回退可能地点。"""
 
         category_name = _normalize_text(row.get("category_name")) or "未分类"
         location_name = _normalize_text(row.get("location_name"))
+        location_type = _to_int(row.get("location_type"))
+        poi_category = _normalize_text(row.get("poi_category"))
         if location_name and location_name != "未知地点":
-            return location_name, category_name
+            return location_name, category_name, location_type, poi_category
 
         raw_name = _normalize_text(row.get("raw_name"))
         raw_road = _normalize_text(row.get("raw_thoroughfare"))
@@ -171,12 +179,19 @@ class TimelineService:
         if nearest:
             nearest_name = _normalize_text(nearest.get("location_name"))
             nearest_home_count = int(nearest.get("home_visit_count") or 0)
+            nearest_location_type = _to_int(nearest.get("location_type"))
+            nearest_poi_category = _normalize_text(nearest.get("poi_category"))
             if nearest_name:
                 resolved_category = "家" if nearest_home_count > 0 else category_name
-                return nearest_name, resolved_category
+                return (
+                    nearest_name,
+                    resolved_category,
+                    nearest_location_type,
+                    nearest_poi_category,
+                )
 
         fallback_name = raw_name or raw_road or "未知地点"
-        return fallback_name, category_name
+        return fallback_name, category_name, location_type, poi_category
 
     def _append_ongoing_stay_event(
         self,
@@ -213,6 +228,8 @@ class TimelineService:
         raw_name = _normalize_text(raw_open.get("raw_name"))
         raw_road = _normalize_text(raw_open.get("raw_thoroughfare"))
         location_name = _normalize_text(nearest.get("location_name")) if nearest else None
+        location_type = _to_int(nearest.get("location_type")) if nearest else None
+        poi_category = _normalize_text(nearest.get("poi_category")) if nearest else None
         home_visit_count = int(nearest.get("home_visit_count") or 0) if nearest else 0
         category_name = "家" if home_visit_count > 0 else "未分类"
 
@@ -221,7 +238,8 @@ class TimelineService:
                 visit_id=-int(raw_open.get("raw_id", 0) or 0),
                 location_name=location_name or raw_name or raw_road or "未知地点",
                 category_name=category_name,
-                location_type=None,
+                location_type=location_type,
+                poi_category=poi_category,
                 tags=[],
                 arrival_at=arrival_at,
                 departure_at=now_at,

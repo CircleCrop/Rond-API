@@ -43,6 +43,38 @@ LOCATION_TYPE_EMOJI = {
     2: "📌",
     3: "🏢",
 }
+POI_CATEGORY_EMOJI = {
+    "MKPOICategoryFitnessCenter": "💪",
+    "MKPOICategoryPublicTransport": "🚉",
+    "MKPOICategoryCafe": "🥤",
+    "MKPOICategoryRestaurant": "🍽️",
+    "MKPOICategoryUniversity": "🏫",
+    "MKPOICategorySchool": "🏫",
+    "MKPOICategoryBeauty": "💇",
+    "MKPOICategoryHotel": "🏨",
+    "MKPOICategoryMovieTheater": "🎬",
+    "MKPOICategoryPark": "🌳",
+    "MKPOICategoryBakery": "🥐",
+    "MKPOICategoryLandmark": "🗽",
+    "MKPOICategoryMuseum": "🏛️",
+    "MKPOICategorySpa": "🧖",
+    "MKPOICategoryAirport": "🛫",
+    "MKPOICategoryNationalMonument": "🏛️",
+    "MKPOICategoryLibrary": "📚",
+    "MKPOICategoryFortress": "🏰",
+    "MKPOICategoryNationalPark": "🏞️",
+    "MKPOICategoryMusicVenue": "🎵",
+    "MKPOICategoryCastle": "🏰",
+    "MKPOICategoryStore": "🛍️",
+    "MKPOICategoryBank": "🏦",
+    "MKPOICategoryATM": "🏧",
+    "MKPOICategoryFoodMarket": "🛒",
+    "MKPOICategoryConventionCenter": "🏛️",
+    "MKPOICategoryTheater": "🎭",
+    "MKPOICategoryPostOffice": "📮",
+    "MKPOICategoryHospital": "🏥",
+    "MKPOICategoryPharmacy": "💊",
+}
 KEYWORD_EMOJI_RULES: list[tuple[tuple[str, ...], str]] = [
     (("家", "宿舍", "小区"), "🏠"),
     (("学校", "大学", "学院", "校区"), "🏫"),
@@ -150,6 +182,7 @@ def _format_visit_event(
         event.category_name,
         event.location_name,
         event.location_type,
+        event.poi_category,
         emoji=emoji,
     )
     if complex_mode:
@@ -288,6 +321,7 @@ def _category_emoji(
     category_name: str,
     location_name: str,
     location_type: int | None,
+    poi_category: str | None,
     emoji: bool,
 ) -> str:
     if not emoji:
@@ -295,15 +329,20 @@ def _category_emoji(
 
     emoji_value = LOCATION_TYPE_EMOJI.get(location_type, "📂")
 
-    direct = CATEGORY_EMOJI_EXACT.get(category_name)
-    if direct:
-        emoji_value = direct
+    if poi_category:
+        poi_emoji = POI_CATEGORY_EMOJI.get(poi_category)
+        if poi_emoji:
+            emoji_value = poi_emoji
 
     keyword_text = f"{category_name} {location_name}".lower()
     for keywords, icon in KEYWORD_EMOJI_RULES:
         if any(keyword in keyword_text for keyword in keywords):
             emoji_value = icon
             break
+
+    direct = CATEGORY_EMOJI_EXACT.get(category_name)
+    if direct:
+        emoji_value = direct
     return emoji_value
 
 
