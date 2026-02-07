@@ -7,7 +7,15 @@ from datetime import date, datetime
 from typing import Literal
 
 OutputMode = Literal["pretty", "json", "both"]
-TransportMode = Literal["unknown", "walk", "run", "drive", "public_transit", "bike"]
+TransportMode = Literal[
+    "unknown",
+    "walk",
+    "run",
+    "drive",
+    "public_transit",
+    "bike",
+    "flight",
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,6 +29,7 @@ class VisitEvent:
     arrival_at: datetime
     departure_at: datetime
     is_cross_day: bool
+    is_ongoing: bool = False
     event_type: Literal["visit"] = "visit"
 
     @property

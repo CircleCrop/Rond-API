@@ -23,12 +23,17 @@ class TimelineRepository:
             v.ZLOCATION AS location_id,
             v.ZARRIVALDATE_ AS arrival_core,
             v.ZDEPARTUREDATE_ AS departure_core,
+            rv.ZNAME AS raw_name,
+            rv.ZTHOROUGHFARE AS raw_thoroughfare,
+            rv.ZLATITUDE AS raw_latitude,
+            rv.ZLONGITUDE AS raw_longitude,
             COALESCE(NULLIF(l.ZNAME_, ''), '未知地点') AS location_name,
             COALESCE(NULLIF(la.ZNAME_, ''), NULLIF(va.ZNAME_, ''), '未分类') AS category_name
         FROM ZVISIT v
         LEFT JOIN ZLOCATION l ON l.Z_PK = v.ZLOCATION
         LEFT JOIN ZACTIVITY la ON la.Z_PK = l.ZUSERACTIVITY_
         LEFT JOIN ZACTIVITY va ON va.Z_PK = v.ZACTIVITY_
+        LEFT JOIN ZRAWVISIT rv ON rv.Z_PK = v.ZRAW
         WHERE
             v.ZPARENT IS NULL
             AND v.ZMERGEDTO IS NULL
@@ -44,6 +49,70 @@ class TimelineRepository:
                 "day_start_core": day_start_core,
                 "day_end_core": day_end_core,
             },
+        )
+        return [dict(row) for row in rows]
+
+    def fetch_latest_open_raw_visit(self, day_end_core: float) -> dict[str, Any] | None:
+        """查询最新的未结束原始到访。"""
+
+        sql = """
+        SELECT
+            rv.Z_PK AS raw_id,
+            rv.ZARRIVALDATE_ AS arrival_core,
+            rv.ZNAME AS raw_name,
+            rv.ZTHOROUGHFARE AS raw_thoroughfare,
+            rv.ZLATITUDE AS raw_latitude,
+            rv.ZLONGITUDE AS raw_longitude
+        FROM ZRAWVISIT rv
+        WHERE
+            rv.ZARRIVALDATE_ IS NOT NULL
+            AND rv.ZARRIVALDATE_ < :day_end_core
+            AND rv.ZDEPARTUREDATE_ > 60000000000
+        ORDER BY rv.ZARRIVALDATE_ DESC
+        LIMIT 1;
+        """
+        rows = self._client.execute_query(sql, {"day_end_core": day_end_core})
+        if not rows:
+            return None
+        return dict(rows[0])
+
+    def fetch_nearby_locations(
+        self,
+        latitude: float,
+        longitude: float,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        """按经纬度获取附近地点。"""
+
+        sql = """
+        SELECT
+            l.Z_PK AS location_id,
+            l.ZNAME_ AS location_name,
+            l.ZLATITUDE AS latitude,
+            l.ZLONGITUDE AS longitude,
+            SUM(CASE WHEN va.ZISHOME = 1 THEN 1 ELSE 0 END) AS home_visit_count,
+            COUNT(v.Z_PK) AS visit_count
+        FROM ZLOCATION l
+        LEFT JOIN ZVISIT v
+            ON v.ZLOCATION = l.Z_PK
+            AND v.ZPARENT IS NULL
+            AND v.ZMERGEDTO IS NULL
+        LEFT JOIN ZACTIVITY va ON va.Z_PK = v.ZACTIVITY_
+        WHERE
+            l.ZNAME_ IS NOT NULL
+            AND TRIM(l.ZNAME_) <> ''
+            AND l.ZLATITUDE IS NOT NULL
+            AND l.ZLONGITUDE IS NOT NULL
+        GROUP BY l.Z_PK
+        ORDER BY
+            ((l.ZLATITUDE - :lat) * (l.ZLATITUDE - :lat))
+            + ((l.ZLONGITUDE - :lon) * (l.ZLONGITUDE - :lon))
+        ASC
+        LIMIT :limit;
+        """
+        rows = self._client.execute_query(
+            sql,
+            {"lat": latitude, "lon": longitude, "limit": limit},
         )
         return [dict(row) for row in rows]
 

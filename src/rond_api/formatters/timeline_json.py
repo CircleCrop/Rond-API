@@ -24,6 +24,7 @@ def timeline_to_dict(timeline: TimelineResult) -> dict[str, Any]:
                     "arrival_at": event.arrival_at.isoformat(),
                     "departure_at": event.departure_at.isoformat(),
                     "is_cross_day": event.is_cross_day,
+                    "is_ongoing": event.is_ongoing,
                 }
             )
             continue
