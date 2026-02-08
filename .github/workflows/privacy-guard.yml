@@ -1,4 +1,4 @@
-行·name: Privacy Guard
+name: Privacy Guard
 
 on:
   pull_request:
