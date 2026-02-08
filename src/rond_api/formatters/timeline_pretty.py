@@ -407,6 +407,9 @@ def _decorate_tree_blocks(blocks: list[tuple[str, list[str]]]) -> list[list[str]
                 decorated.append(f"{follow_prefix}{line}")
             else:
                 decorated.append(follow_prefix)
+        if not is_last:
+            # 块间空行保留树装饰线，避免出现裸空白行。
+            decorated.append("│")
         result.append(decorated)
 
     return result
